@@ -4,6 +4,10 @@
 # (terraform/vpc.tf); the warehouse is not reachable from the internet. Connection details
 # come from repository variables REDSHIFT_HOST / REDSHIFT_USER / REDSHIFT_PASSWORD.
 # Pushes to main run everything, and terraform is validated on every infra change.
+# Terraform plan/apply use the S3 state backend (see terraform/providers.tf) and need repository
+# variables AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (secured) and AWS_DEFAULT_REGION.
+# Branches get a read-only plan; main applies the saved plan, then re-plans and fails unless
+# the second plan is empty (deployment idempotency: applying the same code twice changes nothing).
 image: python:3.12
 
 definitions:
@@ -18,6 +22,32 @@ definitions:
           - terraform fmt -check -recursive
           - terraform init -backend=false -input=false
           - terraform validate
+    - step: &terraform-plan
+        name: Terraform plan (read-only)
+        image: hashicorp/terraform:1.10
+        script:
+          - cd terraform
+          - terraform init -input=false
+          - terraform plan -input=false -lock-timeout=5m
+    - step: &terraform-apply
+        name: Terraform apply + idempotence check
+        image: hashicorp/terraform:1.10
+        deployment: production
+        script:
+          - cd terraform
+          - terraform init -input=false
+          - terraform plan -input=false -lock-timeout=5m -out=tfplan
+          - terraform apply -input=false -lock-timeout=5m tfplan
+          # A second plan right after apply must be empty: exit 0 = no changes, 2 = drift, 1 = error.
+          - |
+            set +e
+            terraform plan -input=false -lock-timeout=5m -detailed-exitcode
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              echo "Not idempotent: a plan straight after apply reported changes or errors (exit $rc)." >&2
+              exit 1
+            fi
+            echo "Idempotent: second plan is empty."
     - step: &test-sftp_ingest
         name: Test lambda sftp_ingest
         runs-on: [self.hosted, linux, vpc]
@@ -84,6 +114,11 @@ pipelines:
               changesets:
                 includePaths: [terraform/**, bitbucket-pipelines.yml]
         - step:
+            <<: *terraform-plan
+            condition:
+              changesets:
+                includePaths: [terraform/**, glue_jobs/**, ingestion/**, auth/**, lambda_functions/**, transformations/**, bitbucket-pipelines.yml]
+        - step:
             <<: *test-sftp_ingest
             condition:
               changesets:
@@ -136,3 +171,4 @@ pipelines:
           - step: *test-transformation_a
           - step: *test-transformation_b
           - step: *test-glue_migrate_data
+      - step: *terraform-apply

@@ -16,6 +16,7 @@ client ─ Bearer token ─► API Gateway ─► authorizer (λ) ─► custome
 This setup creates a naive ETL pipeline using AWS technologies. The purpose is to take some data that exists on SFTP, perform some transformations, and then expose it to clients via API. Much is left out for simplicity, which I am open to explaining during demo.
 
 Features:
+* Idempotent AWS resource deployment (Terraform runs serverless in CI)
 * Staging external data from SFTP to S3 (EventBridge, Lambda (Python), S3)
 * Formatting messy external files into uniform, typed Parquet and migrating them into a Redshift staging table (Glue / Spark (Python), `COPY` through the Data API)
 * Derived tables such as `monthly_transactions`, built in Redshift with SQL ( TODO )
@@ -92,3 +93,6 @@ The API reads from the warehouse environment set by `api_warehouse_env` (default
   `terraform fmt`/`validate` on infra changes. Warehouse-backed tests run against **staging** from a
   self-hosted runner in the VPC (labels `self.hosted, linux, vpc`) using repository variables
   `REDSHIFT_HOST`, `REDSHIFT_USER`, `REDSHIFT_PASSWORD`.
+  Terraform runs from CI too: branches get a read-only `plan`; `main` applies the saved plan and then
+  re-plans with `-detailed-exitcode`, failing the pipeline unless the second plan is empty (deployment
+  idempotency). Needs repository variables `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`.
