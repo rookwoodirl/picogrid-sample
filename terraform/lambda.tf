@@ -2,6 +2,7 @@
 #   - lambda_functions/  data-serving endpoints (query the warehouse); `_*.py` files are shared
 #                        helpers bundled into every zip in that folder
 #   - ingestion/         scheduled SFTP -> S3 loader
+#   - transformations/   SQL transforms run in Redshift via the Data API; `_*.py` files are shared helpers
 #   - auth/              API Gateway token authorizer
 locals {
   warehouse = module.redshift[var.api_warehouse_env]
@@ -53,6 +54,20 @@ locals {
     customerA_user_transactions = {
       src     = "lambda_functions/customerA_user_transactions.py"
       timeout = 30
+      memory  = 256
+      layers  = []
+      env     = local.warehouse_env
+    }
+    transformation_a = {
+      src     = "transformations/transformation_a.py"
+      timeout = 300
+      memory  = 256
+      layers  = []
+      env     = local.warehouse_env
+    }
+    transformation_b = {
+      src     = "transformations/transformation_b.py"
+      timeout = 300
       memory  = 256
       layers  = []
       env     = local.warehouse_env

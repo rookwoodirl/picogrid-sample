@@ -21,6 +21,13 @@ Features:
 * Derived tables such as `monthly_transactions`, built in Redshift with SQL ( TODO )
 * Serving via API Gateway + Lambda, querying Redshift
 
+
+Missing:
+* DBT for model dependencies / definitions instead of Python transformations
+* Step-functions for multi-level jobs
+* MWAA (Airflow) for pipeline orchestration
+* More sophisticated roles and permissions for RLS
+
 ## Who does what
 
 | Stage | Tool | Role |
@@ -42,6 +49,7 @@ Notes:
 | --- | --- |
 | `lambda_functions/*.py` | Data-serving endpoints only, one per customer/table: `customerA_billing`, `customerB_billing` (by month: `start_month`/`end_month`), `customerA_user_transactions` (by day: `start`/`end`). Each selects from a table that already exists in Redshift. `_warehouse.py` is the shared Data API helper |
 | `ingestion/sftp_ingest.py` | Scheduled SFTP → S3 loader |
+| `transformations/*.py` | Lambdas that turn user-level data into monthly data with SQL in Redshift (Data API): `transformation_a` builds `customer_a.monthly_transactions` (user × month), `transformation_b` builds `customer_a.monthly_summary` (month) from it, so run A before B. Each replaces the current month plus `months_back` previous months in one transaction, so reruns are safe. Scheduling and ordering are TODO |
 | `auth/authorizer.py` | API Gateway bearer-token authorizer |
 | `glue_jobs/migrate_data.py` | PySpark Glue job: format raw S3 files, migrate into the Redshift staging table |
 | `terraform/s3.tf` | raw / curated / scripts buckets |

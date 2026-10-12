@@ -112,12 +112,12 @@ pipelines:
             <<: *test-transformation_a
             condition:
               changesets:
-                includePaths: [transformations/transformation_a.py, tests/transformation_a/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+                includePaths: [transformations/transformation_a.py, transformations/_*.py, tests/transformation_a/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
         - step:
             <<: *test-transformation_b
             condition:
               changesets:
-                includePaths: [transformations/transformation_b.py, tests/transformation_b/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+                includePaths: [transformations/transformation_b.py, transformations/_*.py, tests/transformation_b/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
         - step:
             <<: *test-glue_migrate_data
             condition:

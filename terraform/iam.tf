@@ -87,3 +87,32 @@ resource "aws_iam_role_policy" "warehouse_reader" {
   role   = aws_iam_role.lambda[each.key].id
   policy = data.aws_iam_policy_document.warehouse_reader.json
 }
+
+# --- transformations: run SQL (writes) through the Data API ------------------------------
+
+locals {
+  transformation_functions = toset(["transformation_a", "transformation_b"])
+}
+
+data "aws_iam_policy_document" "warehouse_writer" {
+  statement {
+    actions   = ["redshift-data:BatchExecuteStatement", "redshift-data:ExecuteStatement"]
+    resources = [local.warehouse.workgroup_arn]
+  }
+  statement {
+    actions   = ["redshift-data:DescribeStatement"]
+    resources = ["*"]
+  }
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [local.warehouse.admin_secret_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "warehouse_writer" {
+  for_each = local.transformation_functions
+
+  name   = "warehouse-transform"
+  role   = aws_iam_role.lambda[each.key].id
+  policy = data.aws_iam_policy_document.warehouse_writer.json
+}
