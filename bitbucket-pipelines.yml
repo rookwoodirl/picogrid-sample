@@ -12,7 +12,7 @@ definitions:
   steps:
     - step: &terraform-validate
         name: Terraform fmt + validate
-        image: hashicorp/terraform:1.9
+        image: hashicorp/terraform:1.10
         script:
           - cd terraform
           - terraform fmt -check -recursive
