@@ -1,0 +1,138 @@
+# Unit tests run per lambda / transformation / glue job, only when that code (or shared
+# test infra) changes. Warehouse-backed tests run against the Redshift STAGING warehouse
+# (assumed to always hold a small amount of data) from a self-hosted runner inside the VPC
+# (terraform/vpc.tf); the warehouse is not reachable from the internet. Connection details
+# come from repository variables REDSHIFT_HOST / REDSHIFT_USER / REDSHIFT_PASSWORD.
+# Pushes to main run everything, and terraform is validated on every infra change.
+image: python:3.12
+
+definitions:
+  caches:
+    pip: ~/.cache/pip
+  steps:
+    - step: &terraform-validate
+        name: Terraform fmt + validate
+        image: hashicorp/terraform:1.9
+        script:
+          - cd terraform
+          - terraform fmt -check -recursive
+          - terraform init -backend=false -input=false
+          - terraform validate
+    - step: &test-sftp_ingest
+        name: Test lambda sftp_ingest
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh sftp_ingest
+    - step: &test-authorizer
+        name: Test lambda authorizer
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh authorizer
+    - step: &test-customerA_billing
+        name: Test endpoint customerA_billing
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh customerA_billing
+    - step: &test-customerB_billing
+        name: Test endpoint customerB_billing
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh customerB_billing
+    - step: &test-customerA_user_transactions
+        name: Test endpoint customerA_user_transactions
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh customerA_user_transactions
+    - step: &test-transformation_a
+        name: Test transformation_a
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh transformation_a
+    - step: &test-transformation_b
+        name: Test transformation_b
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh transformation_b
+    - step: &test-glue_aggregate
+        name: Test glue aggregate
+        runs-on: [self.hosted, linux, vpc]
+        caches: [pip]
+        artifacts: [test-results/**]
+        script:
+          - ci/run_tests.sh glue_aggregate
+
+pipelines:
+  default:
+    - parallel:
+        - step:
+            <<: *terraform-validate
+            condition:
+              changesets:
+                includePaths: [terraform/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-sftp_ingest
+            condition:
+              changesets:
+                includePaths: [ingestion/sftp_ingest.py, tests/sftp_ingest/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-authorizer
+            condition:
+              changesets:
+                includePaths: [auth/authorizer.py, tests/authorizer/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-customerA_billing
+            condition:
+              changesets:
+                includePaths: [lambda_functions/customerA_billing.py, lambda_functions/_*.py, tests/customerA_billing/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-customerB_billing
+            condition:
+              changesets:
+                includePaths: [lambda_functions/customerB_billing.py, lambda_functions/_*.py, tests/customerB_billing/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-customerA_user_transactions
+            condition:
+              changesets:
+                includePaths: [lambda_functions/customerA_user_transactions.py, lambda_functions/_*.py, tests/customerA_user_transactions/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-transformation_a
+            condition:
+              changesets:
+                includePaths: [transformations/transformation_a.py, tests/transformation_a/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-transformation_b
+            condition:
+              changesets:
+                includePaths: [transformations/transformation_b.py, tests/transformation_b/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+        - step:
+            <<: *test-glue_aggregate
+            condition:
+              changesets:
+                includePaths: [glue_jobs/aggregate.py, tests/glue_aggregate/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+
+  branches:
+    main:
+      - parallel:
+          - step: *terraform-validate
+          - step: *test-sftp_ingest
+          - step: *test-authorizer
+          - step: *test-customerA_billing
+          - step: *test-customerB_billing
+          - step: *test-customerA_user_transactions
+          - step: *test-transformation_a
+          - step: *test-transformation_b
+          - step: *test-glue_aggregate

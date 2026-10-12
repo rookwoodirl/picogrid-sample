@@ -1,0 +1,5 @@
+.terraform/
+*.tfstate*
+terraform/.build/
+.env
+__pycache__/
