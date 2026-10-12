@@ -3,6 +3,11 @@
 GET ?start_month=YYYY-MM&end_month=YYYY-MM&limit=N   (monthly granularity)
 Reads the pre-existing Redshift table `customer_a.billing`.
 """
+
+"""
+This lambda function would be the business logic behind the endpoint set up in lambda.tf
+"""
+
 import _warehouse as wh
 
 SQL = (

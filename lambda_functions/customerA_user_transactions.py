@@ -3,6 +3,11 @@
 GET ?start=YYYY-MM-DD&end=YYYY-MM-DD&limit=N   (daily granularity)
 Reads the pre-existing Redshift table `customer_a.user_transactions`.
 """
+
+"""
+This lambda function would be the business logic behind the endpoint set up in lambda.tf
+"""
+
 import _warehouse as wh
 
 SQL = (
