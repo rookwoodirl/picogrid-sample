@@ -16,7 +16,7 @@ output "curated_bucket" {
 }
 
 output "glue_job_name" {
-  value = aws_glue_job.aggregate.name
+  value = aws_glue_job.migrate_data.name
 }
 
 output "lambda_function_names" {

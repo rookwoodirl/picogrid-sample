@@ -1,15 +1,15 @@
 # picogrid-sample
 
-Dummy pipeline: SFTP → S3 (raw) → Glue/Spark cleaning → S3 (curated) → COPY into Redshift → SQL transforms → API Gateway + Lambda.
+Dummy pipeline: SFTP → S3 (raw) → Glue/Spark formatting → S3 (curated) → COPY into a Redshift staging table → SQL transforms → API Gateway + Lambda.
 
 ```
-EventBridge ─► sftp_ingest (λ) ─► s3 raw ─► Glue job (aggregate.py) ─► s3 curated
-                                                                          │
-                                              loader (λ), TODO: issues COPY via Data API
-                                                                          ▼
-                                                     Redshift staging tables ─► SQL transforms / materialized views
-                                                                          │
-client ─ Bearer token ─► API Gateway ─► authorizer (λ) ─► customer endpoints (λ) ─┘
+EventBridge ─► sftp_ingest (λ) ─► s3 raw ─► Glue job (migrate_data.py) ─► s3 curated (Parquet)
+                                                       │
+                                                       └─ COPY via Data API ─► Redshift staging table
+                                                                                       │
+                                                                  SQL transforms / dbt models (TODO)
+                                                                                       │
+client ─ Bearer token ─► API Gateway ─► authorizer (λ) ─► customer endpoints (λ) ───────┘
 ```
 
 ## Summary
@@ -17,8 +17,7 @@ This setup creates a naive ETL pipeline using AWS technologies. The purpose is t
 
 Features:
 * Staging external data from SFTP to S3 (EventBridge, Lambda (Python), S3)
-* Cleaning of messy external files into uniform, typed output (Glue / Spark (Python))
-* Loading curated data from S3 into Redshift (Lambda issuing `COPY` through the Data API) ( TODO )
+* Formatting messy external files into uniform, typed Parquet and migrating them into a Redshift staging table (Glue / Spark (Python), `COPY` through the Data API)
 * Derived tables such as `monthly_transactions`, built in Redshift with SQL ( TODO )
 * Serving via API Gateway + Lambda, querying Redshift
 
@@ -26,15 +25,15 @@ Features:
 
 | Stage | Tool | Role |
 | --- | --- | --- |
-| Clean | Glue (Spark) | Turns messy, non-uniform external files on S3 into uniform, typed output in `curated`, ready for Redshift. File-level preparation only |
-| Load | Lambda (TODO) | Triggered when the Glue job succeeds (EventBridge). Issues a `COPY` from `curated` through the Data API; Redshift pulls the files from S3 itself using its attached IAM role, so the Lambda moves no data and needs no VPC. Should `COPY` into a staging table and replace by `dt` partition in one transaction so retries don't duplicate rows. Data API calls are asynchronous: wait for completion before running transforms |
-| Transform and serve | Redshift Serverless | Holds the loaded tables. Rollups, joins and derived tables (e.g. user transactions → monthly transactions) are SQL here, ideally materialized views. Heavy rollups can use a second workgroup on the same namespace so they don't compete with API queries |
+| Format and migrate | Glue (`glue_jobs/migrate_data.py`) | Turns messy, non-uniform external files on S3 into uniform, typed Parquet in `curated`, then migrates them into the Redshift staging table `staging.transactions`. The load issues a `COPY` through the Data API (Redshift pulls the files from S3 itself with its attached IAM role) and replaces the run date's rows in one transaction, so re-running a day never duplicates data. Staging only: no business tables are built here |
+| Transform and serve | Redshift Serverless | Holds the staged tables. Rollups, joins and derived tables (e.g. user transactions → monthly transactions) are SQL here, materialized as stored tables (dbt is the likely tool; TODO). Heavy rollups can use a second workgroup on the same namespace so they don't compete with API queries |
 
 Notes:
 * Redshift is a dedicated columnar data warehouse, not RDS. RDS is a separate OLTP database service and is not used here.
-* Redshift tables live in the namespace's managed storage, not in the S3 buckets in this repo. Today nothing creates the tables or loads them: the endpoints assume `customer_a.billing` and similar already exist.
+* Redshift tables live in the namespace's managed storage, not in the S3 buckets in this repo. Today only `staging.transactions` is created and loaded (by `migrate_data.py`); the endpoints assume `customer_a.billing` and similar already exist, and nothing builds them yet.
 * DynamoDB is not used for serving. The endpoints are range queries over months or days, which fit a warehouse. Reconsider only for key-lookup endpoints with tight latency needs.
-* Glue is for cleaning messy files and volumes that are too large to load first. Plain SQL rollups over data already in Redshift do not need Spark.
+* Glue is for formatting messy files before they reach Redshift. Plain SQL rollups over data already in Redshift do not need Spark.
+* The Glue job loads whichever warehouse environment `api_warehouse_env` selects (default `prod`).
 
 
 ## Layout
@@ -44,7 +43,7 @@ Notes:
 | `lambda_functions/*.py` | Data-serving endpoints only, one per customer/table: `customerA_billing`, `customerB_billing` (by month: `start_month`/`end_month`), `customerA_user_transactions` (by day: `start`/`end`). Each selects from a table that already exists in Redshift. `_warehouse.py` is the shared Data API helper |
 | `ingestion/sftp_ingest.py` | Scheduled SFTP → S3 loader |
 | `auth/authorizer.py` | API Gateway bearer-token authorizer |
-| `glue_jobs/aggregate.py` | PySpark Glue job |
+| `glue_jobs/migrate_data.py` | PySpark Glue job: format raw S3 files, migrate into the Redshift staging table |
 | `terraform/s3.tf` | raw / curated / scripts buckets |
 | `terraform/glue.tf` | Glue job, role, catalog DB |
 | `terraform/lambda.tf` | Packages and deploys every function in `lambda_functions/`; schedule |

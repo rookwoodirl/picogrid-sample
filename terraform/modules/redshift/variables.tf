@@ -36,5 +36,5 @@ variable "base_capacity" {
 variable "s3_read_prefix" {
   description = "Key prefix Redshift may read under the buckets above"
   type        = string
-  default     = "aggregates/"
+  default     = "staging/"
 }

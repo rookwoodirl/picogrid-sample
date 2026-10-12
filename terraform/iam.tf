@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "sftp_ingest" {
   }
   statement {
     actions   = ["glue:StartJobRun"]
-    resources = [aws_glue_job.aggregate.arn]
+    resources = [aws_glue_job.migrate_data.arn]
   }
 }
 

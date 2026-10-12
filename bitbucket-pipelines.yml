@@ -67,13 +67,13 @@ definitions:
         artifacts: [test-results/**]
         script:
           - ci/run_tests.sh transformation_b
-    - step: &test-glue_aggregate
-        name: Test glue aggregate
+    - step: &test-glue_migrate_data
+        name: Test glue migrate_data
         runs-on: [self.hosted, linux, vpc]
         caches: [pip]
         artifacts: [test-results/**]
         script:
-          - ci/run_tests.sh glue_aggregate
+          - ci/run_tests.sh glue_migrate_data
 
 pipelines:
   default:
@@ -119,10 +119,10 @@ pipelines:
               changesets:
                 includePaths: [transformations/transformation_b.py, tests/transformation_b/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
         - step:
-            <<: *test-glue_aggregate
+            <<: *test-glue_migrate_data
             condition:
               changesets:
-                includePaths: [glue_jobs/aggregate.py, tests/glue_aggregate/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+                includePaths: [glue_jobs/migrate_data.py, tests/glue_migrate_data/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
 
   branches:
     main:
@@ -135,4 +135,4 @@ pipelines:
           - step: *test-customerA_user_transactions
           - step: *test-transformation_a
           - step: *test-transformation_b
-          - step: *test-glue_aggregate
+          - step: *test-glue_migrate_data

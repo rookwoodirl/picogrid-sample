@@ -4,4 +4,4 @@ def test_staging_has_data(db):
         assert cur.fetchone()[0] > 0
 
 
-# TODO: real tests for glue_aggregate, run against the staging warehouse
+# TODO: real tests for glue_jobs/migrate_data.py (format_raw on a small local Spark frame), run against the staging warehouse

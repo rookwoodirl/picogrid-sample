@@ -24,7 +24,7 @@ locals {
         SFTP_PORT       = tostring(var.sftp_port)
         SFTP_REMOTE_DIR = var.sftp_remote_dir
         SFTP_SECRET_ARN = aws_secretsmanager_secret.sftp.arn
-        GLUE_JOB_NAME   = aws_glue_job.aggregate.name
+        GLUE_JOB_NAME   = aws_glue_job.migrate_data.name
       }
     }
     authorizer = {
