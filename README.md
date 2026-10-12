@@ -24,9 +24,10 @@ Features:
 
 Missing:
 * DBT for model dependencies / definitions instead of Python transformations
+* MWAA (Airflow) for pipeline orchestration independent of Eventbridge
 * Step-functions for multi-level jobs
-* MWAA (Airflow) for pipeline orchestration
-* More sophisticated roles and permissions for RLS
+* More sophisticated roles and user permissions for RLS (support for safe multi-tenancy, read-only for user-facing lambdas, etc)
+* Robustness (DQ checks, alerting, ingest idempotency)
 
 ## Who does what
 
