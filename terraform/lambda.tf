@@ -1,5 +1,5 @@
 # Lambdas. Handlers are modules exposing `handler(event, context)`.
-#   - lambda_functions/  data-serving endpoints (query the warehouse); `_*.py` files are shared
+#   - api_business_logic/ data-serving endpoints (query the warehouse); `_*.py` files are shared
 #                        helpers bundled into every zip in that folder
 #   - ingestion/         scheduled SFTP -> S3 loader
 #   - transformations/   SQL transforms run in Redshift via the Data API; `_*.py` files are shared helpers
@@ -38,21 +38,21 @@ locals {
       }
     }
     customerA_billing = {
-      src     = "lambda_functions/customerA_billing.py"
+      src     = "api_business_logic/customerA_billing.py"
       timeout = 30
       memory  = 256
       layers  = []
       env     = local.warehouse_env
     }
     customerB_billing = {
-      src     = "lambda_functions/customerB_billing.py"
+      src     = "api_business_logic/customerB_billing.py"
       timeout = 30
       memory  = 256
       layers  = []
       env     = local.warehouse_env
     }
     customerA_user_transactions = {
-      src     = "lambda_functions/customerA_user_transactions.py"
+      src     = "api_business_logic/customerA_user_transactions.py"
       timeout = 30
       memory  = 256
       layers  = []

@@ -12,7 +12,7 @@ import sys
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-for sub in ("lambda_functions", "ingestion", "auth", "transformations"):
+for sub in ("api_business_logic", "ingestion", "auth", "transformations"):
     sys.path.insert(0, str(ROOT / sub))
 
 LAMBDA_ENV = {

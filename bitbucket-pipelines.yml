@@ -117,7 +117,7 @@ pipelines:
             <<: *terraform-plan
             condition:
               changesets:
-                includePaths: [terraform/**, glue_jobs/**, ingestion/**, auth/**, lambda_functions/**, transformations/**, bitbucket-pipelines.yml]
+                includePaths: [terraform/**, glue_jobs/**, ingestion/**, auth/**, api_business_logic/**, transformations/**, bitbucket-pipelines.yml]
         - step:
             <<: *test-sftp_ingest
             condition:
@@ -132,17 +132,17 @@ pipelines:
             <<: *test-customerA_billing
             condition:
               changesets:
-                includePaths: [lambda_functions/customerA_billing.py, lambda_functions/_*.py, tests/customerA_billing/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+                includePaths: [api_business_logic/customerA_billing.py, api_business_logic/_*.py, tests/customerA_billing/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
         - step:
             <<: *test-customerB_billing
             condition:
               changesets:
-                includePaths: [lambda_functions/customerB_billing.py, lambda_functions/_*.py, tests/customerB_billing/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+                includePaths: [api_business_logic/customerB_billing.py, api_business_logic/_*.py, tests/customerB_billing/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
         - step:
             <<: *test-customerA_user_transactions
             condition:
               changesets:
-                includePaths: [lambda_functions/customerA_user_transactions.py, lambda_functions/_*.py, tests/customerA_user_transactions/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
+                includePaths: [api_business_logic/customerA_user_transactions.py, api_business_logic/_*.py, tests/customerA_user_transactions/**, tests/conftest.py, requirements-dev.txt, ci/**, bitbucket-pipelines.yml]
         - step:
             <<: *test-transformation_a
             condition:

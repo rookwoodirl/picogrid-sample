@@ -30,12 +30,36 @@ Missing:
 * More sophisticated roles and user permissions for RLS (support for safe multi-tenancy, read-only for user-facing lambdas, etc)
 * Robustness (DQ checks, alerting, ingest idempotency)
 
-## Who does what
-
-| Stage | Tool | Role |
-| --- | --- | --- |
-| Format and migrate | Glue (`glue_jobs/migrate_data.py`) | Turns messy, non-uniform external files on S3 into uniform, typed Parquet in `curated`, then migrates them into the Redshift staging table `staging.transactions`. The load issues a `COPY` through the Data API (Redshift pulls the files from S3 itself with its attached IAM role) and replaces the run date's rows in one transaction, so re-running a day never duplicates data. Staging only: no business tables are built here |
-| Transform and serve | Redshift Serverless | Holds the staged tables. Rollups, joins and derived tables (e.g. user transactions → monthly transactions) are SQL here, materialized as stored tables (dbt is the likely tool; TODO). Heavy rollups can use a second workgroup on the same namespace so they don't compete with API queries |
+## Directories, explained
+* `auth/`
+  - technology: lambda (via Python)
+  - purpose: API Gateway bearer-token authorizer
+  - permissions: reads the API token secret, nothing else
+* `ingestion/`
+  - technology: lambda (via Python)
+  - purpose: staging external partner data from SFTP into S3 (raw)
+  - permissions: reads the SFTP credentials secret, writes to the raw bucket, can start the Glue job; no Redshift access
+* `glue_jobs/`
+  - technology: Glue (via Python / PySpark)
+  - purpose: formats and cleans raw files, writes Parquet to the curated bucket, then migrates it into the Redshift staging table (`COPY` via the Data API)
+  - permissions: reads raw and scripts buckets, writes the curated bucket, writes to Redshift through the Data API (admin secret)
+* `transformations/`
+  - technology: lambda (via Python), SQL run in Redshift through the Data API
+  - purpose: materializing the tables that make up the data platform (user-level to monthly data)
+  - permissions: writes to Redshift (admin secret)
+  - note: I'd rather this be DBT with MWAA (managed airflow)
+* `api_business_logic/`
+  - technology: lambda (via Python)
+  - purpose: business logic for API endpoints
+  - permissions: intended read-only on Redshift; currently IAM only allows `ExecuteStatement`, but the lambdas use the admin secret, so they are not actually restricted to reads
+* `terraform/`
+  - technology: Terraform, state in S3
+  - purpose: idempotent deployment of all AWS resources and the relationships between them; CI plans on branches and, on `main`, applies and then re-plans to confirm nothing changes
+  - permissions: runs with the CI AWS credentials (admin-level)
+* `ci/`
+  - purpose: `run_tests.sh`, the per-target test runner used by the pipeline
+* `tests/`
+  - purpose: unit tests run in CI; AWS is mocked (moto), and warehouse-backed tests read the existing Redshift staging environment from the self-hosted runner. Nothing is provisioned
 
 Notes:
 * Redshift is a dedicated columnar data warehouse, not RDS. RDS is a separate OLTP database service and is not used here.
@@ -49,14 +73,14 @@ Notes:
 
 | Path | Purpose |
 | --- | --- |
-| `lambda_functions/*.py` | Data-serving endpoints only, one per customer/table: `customerA_billing`, `customerB_billing` (by month: `start_month`/`end_month`), `customerA_user_transactions` (by day: `start`/`end`). Each selects from a table that already exists in Redshift. `_warehouse.py` is the shared Data API helper |
+| `api_business_logic/*.py` | Data-serving endpoints only, one per customer/table: `customerA_billing`, `customerB_billing` (by month: `start_month`/`end_month`), `customerA_user_transactions` (by day: `start`/`end`). Each selects from a table that already exists in Redshift. `_warehouse.py` is the shared Data API helper |
 | `ingestion/sftp_ingest.py` | Scheduled SFTP → S3 loader |
 | `transformations/*.py` | Lambdas that turn user-level data into monthly data with SQL in Redshift (Data API): `transformation_a` builds `customer_a.monthly_transactions` (user × month), `transformation_b` builds `customer_a.monthly_summary` (month) from it, so run A before B. Each replaces the current month plus `months_back` previous months in one transaction, so reruns are safe. Scheduling and ordering are TODO |
 | `auth/authorizer.py` | API Gateway bearer-token authorizer |
 | `glue_jobs/migrate_data.py` | PySpark Glue job: format raw S3 files, migrate into the Redshift staging table |
 | `terraform/s3.tf` | raw / curated / scripts buckets |
 | `terraform/glue.tf` | Glue job, role, catalog DB |
-| `terraform/lambda.tf` | Packages and deploys every function in `lambda_functions/`; schedule |
+| `terraform/lambda.tf` | Packages and deploys every function in `api_business_logic/`; schedule |
 | `terraform/iam.tf` | Per-function least-privilege roles |
 | `terraform/secrets.tf` | API token (generated) and SFTP credentials (placeholder) |
 | `terraform/networking.tf` | HTTP API, Lambda authorizer, routes, stage |
@@ -80,7 +104,7 @@ TOKEN=$(aws secretsmanager get-secret-value --secret-id $(terraform output -raw 
 curl -H "Authorization: Bearer $TOKEN" "$(terraform output -raw api_url)/customerA/billing?start_month=2026-01&end_month=2026-03"
 ```
 
-Add a new endpoint by dropping `lambda_functions/<name>.py` (exposing `handler`), adding an entry to
+Add a new endpoint by dropping `api_business_logic/<name>.py` (exposing `handler`), adding an entry to
 `local.lambda_functions` (and `warehouse_functions`) in `lambda.tf`, and a route in `local.api_routes` in `networking.tf`.
 The API reads from the warehouse environment set by `api_warehouse_env` (default `prod`).
 
